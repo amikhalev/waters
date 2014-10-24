@@ -33,7 +33,8 @@ gulp.task "build:scripts", ->
     .pipe sourcemaps.init()
     .pipe coffee(
       bare: true
-    ).on('error', gutil.log)
+    ).on "error", (e) ->
+      gutil.log e.toString()
     .pipe sourcemaps.write()
     .pipe gulp.dest(options.files.dist)
 

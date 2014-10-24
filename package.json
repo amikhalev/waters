@@ -9,10 +9,12 @@
   "dependencies": {
     "bluebird": "~2.3.6",
     "bunyan": "~1.2.0",
+    "later": "^1.1.6",
+    "lodash": "~2.4.1",
     "restify": "~2.8.3",
-    "sequelize": "^2.0.0-rc2",
+    "sequelize": "~2.0.0-rc2",
     "source-map-support": "~0.2.7",
-    "sqlite3": "^3.0.2"
+    "sqlite3": "~3.0.2"
   },
   "devDependencies": {
     "coffee-script": "~1.8.0",

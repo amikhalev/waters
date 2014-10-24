@@ -2,18 +2,14 @@ require("source-map-support").install()
 
 restify = require "restify"
 bunyan = require "bunyan"
-Sequelize = require "sequelize"
-
+config = require "./lib/config"
 log = require "./lib/log"
+models = require "./lib/models/"
+GPIO = require "./lib/gpio"
+sequelize = models.sequelize
+mock = require "./lib/mock"
 
-sequelizeLog = log.child subsystem: "sequelize", true
-
-sequelize = new Sequelize "database", "username", "password",
-  dialect: "sqlite"
-  storage: "database.sqlite"
-  logging: -> sequelizeLog.trace arguments...
-
-models = require("./lib/models/")(sequelize)
+GPIO.stub()
 
 log.info "Syncing sequelize models..."
 sequelize.sync()
@@ -25,7 +21,7 @@ sequelize.sync()
 .then ->
   # mock data
   log.info "Creating mock models"
-  require("./lib/mock")(sequelize, models, sequelizeLog)
+  mock()
 .tap -> log.info "Created mock models"
 .catch (err) ->
   log.error err, "Failed to create mock models"
@@ -37,7 +33,7 @@ sequelize.sync()
 
   server = restify.createServer
     log: httpLog
-    name: "waters"
+    name: config.name
 
   server.use restify.acceptParser(server.acceptable)
   server.use restify.authorizationParser()
@@ -48,8 +44,9 @@ sequelize.sync()
   #server.on('after', restify.auditLogger({ log: log }));
 
   #log.info "%j", routes
-  routes.gpio.bind server, "/api/gpio"
+  routes.gpio.bind server, "/api/gpios"
+  routes.section.bind server, "/api/sections"
 
-  port = process.argv[2] or process.env["PORT"] or 8080
+  port = config.server.port
   server.listen port, ->
     log.info "%s listening at %s", server.name, server.url
