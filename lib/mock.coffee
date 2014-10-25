@@ -34,17 +34,20 @@ module.exports = ->
         where:
           name: "Morning"
           enabled: true
-          when: "every day at 5 am and 11 pm"
+          when: "at 10:25 AM"
   ]
   .spread (sec1, sec2, prog) ->
     sec1 = sec1[0]
     sec2 = sec2[0]
     prog = prog[0]
-    sec1.ProgramSections = time: 1.0
-    sec2.ProgramSections = time: 2.0
+    sec1.ProgramSections = time: 5
+    sec2.ProgramSections = time: 5
     prog.setSections [sec1, sec2]
-    .catch (e) -> log.error e
-    prog.run()
+    .then ->
+      p = prog.run()
+      setTimeout ->
+        p.cancel()
+      , 2500
     .catch (e) -> log.error e
   .then ->
     log.info "Initialized"

@@ -45,10 +45,11 @@ module.exports = (sequelize, DataTypes) ->
           action: "runFor"
           runTime: time
           id: @id
-        , "runFor #{time}"
+        , "runFor #{time} s"
         if @enabled
           GPIO.setValue @gpio, true
           .delay time * 1000
+          .cancellable()
           .bind this
           .then -> GPIO.setValue @gpio, false
         else Promise.reject("Not enabled")
