@@ -1,5 +1,7 @@
 Promise = require "bluebird"
 GPIO = require "../gpio"
+errors = require "../errors"
+APIError = errors.APIError
 
 log = require("../log").child
   subsystem: "models"
@@ -24,32 +26,59 @@ module.exports = (sequelize, DataTypes) ->
   ,
     instanceMethods:
       init: ->
-        if @enabled
+        log.trace
+          action: "init"
+          id: @id
+        , "init section #{@name}"
+        if not @enabled then Promise.reject new APIError "NotEnabledError", "Section not enabled"
+        else if @initialized then Promise.reject new APIError "AlreadyInitializedError", "Section already initialized"
+        else
           GPIO.open @gpio
           .bind this
           .then -> GPIO.setDirection @gpio, GPIO.OUT
           .then -> GPIO.setValue @gpio, false
-        else Promise.reject("Not enabled")
+          .tap => @initialized = true; log.error Object.keys this, "4"
       deinit: ->
-        if @enabled
+        log.trace
+          action: "deinit"
+          id: @id
+        , "deinit section #{@name}"
+        if not @enabled then Promise.reject new APIError "NotEnabledError", "Section not enabled"
+        else if not @initialized then Promise.reject new APIError "NotInitializedError", "Section not initialized"
+        else
           GPIO.setValue @gpio, false
           .bind this
           .then -> GPIO.close @gpio
-        else Promise.reject("Not enabled")
+          .tap => @initialized = false; log.error "1"
+      setGPIO: (gpio) ->
+        if @enabled and @initialized
+          @deinit()
+          .bind this
+          .then -> @gpio = gpio
+          .then -> @init()
+          .catch (e) -> log.error e, "Error changing gpio on section #{@id}"
+        else @setDataValue "gpio", gpio
       setValue: (value) ->
-        if @enabled
+        log.trace
+          action: "setValue"
+          id: @id
+        , "setValue section #{@name}"
+        log.error Object.keys this, "10"
+        if not @enabled then Promise.reject new APIError "NotEnabledError", "Section not enabled"
+        else if not @initialized then Promise.reject new APIError "NotInitializedError", "Section not initialized"
+        else
           GPIO.setValue @gpio, value
-        else Promise.reject("Not enabled")
       runFor: (time) ->
         log.trace
           action: "runFor"
           runTime: time
           id: @id
         , "runFor #{time} s"
-        if @enabled
-          GPIO.setValue @gpio, true
-          .delay time * 1000
-          .cancellable()
+        @setValue true
+        .then ->
+          promise = Promise.delay time * 1000
+          .cancellable
           .bind this
-          .then -> GPIO.setValue @gpio, false
-        else Promise.reject("Not enabled")
+          .then -> @setValue false
+          promise: promise
+          cancel: -> promise.cancel

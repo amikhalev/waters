@@ -46,6 +46,7 @@ sequelize.sync()
   #log.info "%j", routes
   routes.gpio.bind server, "/api/gpios"
   routes.section.bind server, "/api/sections"
+  routes.program.bind server, "/api/programs"
 
   port = config.server.port
   server.listen port, ->

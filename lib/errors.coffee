@@ -5,6 +5,7 @@ GPIO = require "./gpio"
 module.exports = errors =
   APIError: class APIError extends Error
     constructor: (@name, @message, @status) ->
+      Error.captureStackTrace this, @constructor
 
   SequelizeError: class SequelizeError extends APIError
     constructor: (err) ->

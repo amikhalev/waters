@@ -49,7 +49,7 @@ GPIO =
       super name, message, status or 400
 
   stub: ->
-    log.info "Stubbing gpio methods"
+    log.warn "Stubbing gpio methods"
     @open = (gpio) ->
       log.trace "[STUB] open #{gpio}"
       Promise.resolve()

@@ -9,20 +9,8 @@ format = require("util").format
 
 options =
   files:
-    coffee: [
-      "./app.coffee"
-      "./lib/**/*.coffee"
-    ]
-    maps: "./maps"
+    coffee: "./{app.coffee,lib/**/*.coffee}"
     dist: "./dist"
-    clean: "./dist"
-    run: "./dist/app.js"
-    copy:
-      src: [
-        "package.json"
-        "install.sh"
-      ]
-      dest: "./dist"
   remote:
     host: "192.168.1.30"
     path: "/home/alex/waters"
@@ -35,12 +23,15 @@ gulp.task "build:scripts", ->
       bare: true
     ).on "error", (e) ->
       gutil.log e.toString()
-    .pipe sourcemaps.write()
+    .pipe sourcemaps.write "./maps", sourceRoot: __dirname
     .pipe gulp.dest(options.files.dist)
 
 gulp.task "build:copy", ->
-  gulp.src options.files.copy.src
-    .pipe gulp.dest(options.files.copy.dest)
+  gulp.src [
+    "package.json"
+    "install.sh"
+  ]
+    .pipe gulp.dest(options.files.dist)
   return
 
 gulp.task "build", [
@@ -48,10 +39,10 @@ gulp.task "build", [
   "build:copy"
 ]
 gulp.task "clean", (done) ->
-  del options.files.clean, done
+  del options.files.dist, done
 
-gulp.task "run:exec", ["build"], (done) ->
-  proc = child.spawn("node", [options.files.run])
+run = (params, done) ->
+  proc = child.spawn("node", (params or []).concat ["./dist/app.js"])
   proc.on "error", (err) ->
     done err: err
     return
@@ -61,11 +52,21 @@ gulp.task "run:exec", ["build"], (done) ->
   proc.stdout.pipe bunyan.stdin
   bunyan.stdout.pipe process.stdout
   proc.stderr.pipe process.stderr
-  return
+
+gulp.task "run:exec", ["build"], (done) ->
+  run [], done
 
 gulp.task "run", [
   "build"
   "run:exec"
+]
+
+gulp.task "debug:exec", ["build"], (done) ->
+  run ["--debug-brk"], done
+
+gulp.task "debug", [
+  "build"
+  "debug:exec"
 ]
 
 gulp.task "deploy:upload", ["build"], (cb) ->

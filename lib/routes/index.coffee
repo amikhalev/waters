@@ -1,3 +1,3 @@
-module.exports = routes =
-  gpio: require "./gpio"
-  section: require "./section"
+fs = require "fs"
+module.exports = routes = fs.readdirSync "."
+  .map require

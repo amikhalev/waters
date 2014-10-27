@@ -1,19 +1,19 @@
 restify = require "restify"
 models = require "../models"
-Section = models.Section
+Program = models.Program
 errors = require("../errors")
 SequelizeError = errors.SequelizeError
 RestError = errors.RestError
 
 log = require("../log").child
   subsystem: "api"
-  api: "section"
+  api: "program"
 , true
 
 findById = (id) ->
-  Section.find where: id: id
+  Program.find where: id: id
   .then (sec) ->
-    if not sec then throw new restify.NotFoundError "Section not found"
+    if not sec then throw new restify.NotFoundError "Program not found"
     sec
   , (err) -> throw new SequelizeError err
 
@@ -27,10 +27,9 @@ module.exports =
     server.post "#{base}/:id/init", @init
     server.post "#{base}/:id/deinit", @deinit
     server.put "#{base}/:id/value", @setValue
-    server.post "#{base}/:id/runFor", @run
 
   get: (req, res, next) ->
-    Section.findAll
+    Program.findAll
       where: req.params
     .then (sections) ->
       res.send sections
@@ -39,21 +38,21 @@ module.exports =
     .finally -> next()
 
   add: (req, res, next) ->
-    Section.create req.params
+    Program.create req.params
     .then (sec) ->
       res.send sec
     , (err) -> res.send new RestError new SequelizeError err
     .finally -> next()
 
   update: (req, res, next) ->
-    Section.update req.params, id: req.params.id
+    Program.update req.params, id: req.params.id
     .then (num) ->
       res.send updated: num
     , (err) -> res.send new RestError new SequelizeError err
     .finally -> next()
 
   destroy: (req, res, next) ->
-    Section.destroy req.params
+    Program.destroy req.params
     .then (num) ->
       res.send deleted: num
     , (err) -> res.send new RestError new SequelizeError err
@@ -83,14 +82,5 @@ module.exports =
       sec.setValue req.params.value
     .then ->
       res.send value: req.params.value
-    , (err) -> res.send new RestError err
-    .finally -> next()
-
-  setValue: (req, res, next) ->
-    findById id: req.params.id
-    .then (sec) ->
-      sec.runFor req.params.time
-    .then ->
-      res.send status: "success"
     , (err) -> res.send new RestError err
     .finally -> next()
