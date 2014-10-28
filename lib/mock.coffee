@@ -45,13 +45,11 @@ module.exports = ->
     prog.setSections [sec1, sec2]
     .then -> sec1.init()
     .then -> sec2.init()
-    .then -> sec1.setGPIO 0
-    .then -> log.error "4.5"; sec1.save(); log.error "5"
     .then ->
       prog.run()
-      .props (promise, cancel) ->
-        Promise.delay 2500
-          .then -> cancel()
+#      .props (promise, cancel) ->
+#        Promise.delay 2500
+#          .then -> cancel()
   .then ->
     log.info "Initialized"
   .catch sequelize.ValidationError, (e) -> log.error e.errors, "SequelizeValidationError"

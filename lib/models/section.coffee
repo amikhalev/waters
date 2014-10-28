@@ -1,4 +1,5 @@
 Promise = require "bluebird"
+_ = require "lodash"
 GPIO = require "../gpio"
 errors = require "../errors"
 APIError = errors.APIError
@@ -7,6 +8,8 @@ log = require("../log").child
   subsystem: "models"
   model: "Section"
 , true
+
+initialized = []
 
 module.exports = (sequelize, DataTypes) ->
   Section = sequelize.define 'Section',
@@ -25,49 +28,65 @@ module.exports = (sequelize, DataTypes) ->
       type: DataTypes.BOOLEAN
   ,
     instanceMethods:
+      isInitialized: ->
+        @gpio in initialized
       init: ->
         log.trace
           action: "init"
           id: @id
         , "init section #{@name}"
         if not @enabled then Promise.reject new APIError "NotEnabledError", "Section not enabled"
-        else if @initialized then Promise.reject new APIError "AlreadyInitializedError", "Section already initialized"
+        else if @isInitialized() then Promise.reject new APIError "AlreadyInitializedError", "Section already initialized"
         else
           GPIO.open @gpio
           .bind this
           .then -> GPIO.setDirection @gpio, GPIO.OUT
           .then -> GPIO.setValue @gpio, false
-          .tap => @initialized = true; log.error Object.keys this, "4"
+          .tap -> initialized.push @gpio
       deinit: ->
         log.trace
           action: "deinit"
           id: @id
         , "deinit section #{@name}"
         if not @enabled then Promise.reject new APIError "NotEnabledError", "Section not enabled"
-        else if not @initialized then Promise.reject new APIError "NotInitializedError", "Section not initialized"
+        else if not @isInitialized() then Promise.reject new APIError "NotInitializedError", "Section not initialized"
         else
           GPIO.setValue @gpio, false
           .bind this
           .then -> GPIO.close @gpio
-          .tap => @initialized = false; log.error "1"
+          .tap -> _.remove initialized, @gpio
       setGPIO: (gpio) ->
-        if @enabled and @initialized
+        log.trace
+          action: "setGPIO"
+          id: @id
+          gpio: gpio
+        , "setGPIO section #{@name}, #{gpio}"
+        if @enabled and @isInitialized()
           @deinit()
           .bind this
           .then -> @gpio = gpio
           .then -> @init()
           .catch (e) -> log.error e, "Error changing gpio on section #{@id}"
-        else @setDataValue "gpio", gpio
+        else @gpio = gpio
       setValue: (value) ->
         log.trace
           action: "setValue"
           id: @id
-        , "setValue section #{@name}"
-        log.error Object.keys this, "10"
+          value: value
+        , "setValue section #{@name}, #{value}"
         if not @enabled then Promise.reject new APIError "NotEnabledError", "Section not enabled"
-        else if not @initialized then Promise.reject new APIError "NotInitializedError", "Section not initialized"
+        else if not @isInitialized() then Promise.reject new APIError "NotInitializedError", "Section not initialized"
         else
           GPIO.setValue @gpio, value
+      getValue: ->
+        log.trace
+          action: "getValue"
+          id: @id
+        , "getValue section #{@name}"
+        if not @enabled then Promise.reject new APIError "NotEnabledError", "Section not enabled"
+        else if not @isInitialized() then Promise.reject new APIError "NotInitializedError", "Section not initialized"
+        else
+          GPIO.getValue @gpio
       runFor: (time) ->
         log.trace
           action: "runFor"
@@ -75,9 +94,10 @@ module.exports = (sequelize, DataTypes) ->
           id: @id
         , "runFor #{time} s"
         @setValue true
+        .bind this
         .then ->
           promise = Promise.delay time * 1000
-          .cancellable
+          .cancellable()
           .bind this
           .then -> @setValue false
           promise: promise

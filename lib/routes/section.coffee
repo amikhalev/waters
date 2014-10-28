@@ -10,11 +10,13 @@ log = require("../log").child
   api: "section"
 , true
 
+checkExists = (sec) ->
+  if not sec or sec.length is 0 then throw new restify.NotFoundError "Section not found"
+  sec
+
 findById = (id) ->
   Section.find where: id: id
-  .then (sec) ->
-    if not sec then throw new restify.NotFoundError "Section not found"
-    sec
+  .then (sec) -> checkExists sec
   , (err) -> throw new SequelizeError err
 
 module.exports =
@@ -22,16 +24,20 @@ module.exports =
     server.post "#{base}", @add
     server.get "#{base}", @get
     server.get "#{base}/:id", @get
-    server.put "#{base}/:id", @update
+    server.patch "#{base}/:id", @update
     server.del "#{base}/:id", @destroy
+    server.get "#{base}/:id/init", @isInitialized
     server.post "#{base}/:id/init", @init
     server.post "#{base}/:id/deinit", @deinit
+#    server.get "#{base}/:id/gpio", @getGPIO
+#    server.put "#{base}/:id/gpio", @setGPIO
     server.put "#{base}/:id/value", @setValue
-    server.post "#{base}/:id/runFor", @run
+    server.post "#{base}/:id/runFor", @runFor
 
   get: (req, res, next) ->
     Section.findAll
       where: req.params
+    .then checkExists
     .then (sections) ->
       res.send sections
     , (err) ->
@@ -57,6 +63,15 @@ module.exports =
     .then (num) ->
       res.send deleted: num
     , (err) -> res.send new RestError new SequelizeError err
+    .finally -> next()
+
+  isInitialized: (req, res, next) ->
+    findById req.params.id
+    .then (sec) ->
+      sec.isInitialized()
+    .then (initialized) ->
+      res.send initialized: initialized
+    , (err) -> res.send new RestError err
     .finally -> next()
 
   init: (req, res, next) ->
@@ -86,8 +101,8 @@ module.exports =
     , (err) -> res.send new RestError err
     .finally -> next()
 
-  setValue: (req, res, next) ->
-    findById id: req.params.id
+  runFor: (req, res, next) ->
+    findById req.params.id
     .then (sec) ->
       sec.runFor req.params.time
     .then ->

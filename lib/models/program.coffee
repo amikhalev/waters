@@ -1,6 +1,8 @@
 Promise = require "bluebird"
 later = require "later"
 
+later.date.localTime()
+
 log = require("../log").child
   subsystem: "models"
   model: "Program"
@@ -30,13 +32,15 @@ module.exports = (sequelize, DataTypes) ->
           programName: @name
         , "run program #{@name}"
         if @enabled
-          @getSections()
+          promise = @getSections()
           .each (section) ->
             if section.enabled
               section.runFor section.ProgramSection.time
+              .get "promise"
+          Promise.resolve
+            promise: promise
         else Promise.reject "Not enabled"
       schedule: ->
-        later.date.localTime()
         sched = later.parse.text @when
         if sched.error isnt -1
           return log.error "invalid schedule \"#{@when}\": error at #{sched.error}"

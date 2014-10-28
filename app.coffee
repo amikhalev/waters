@@ -34,6 +34,7 @@ sequelize.sync()
   server = restify.createServer
     log: httpLog
     name: config.name
+    version = require("./package.json").version
 
   server.use restify.acceptParser(server.acceptable)
   server.use restify.authorizationParser()
@@ -43,7 +44,6 @@ sequelize.sync()
   server.use restify.requestLogger()
   #server.on('after', restify.auditLogger({ log: log }));
 
-  #log.info "%j", routes
   routes.gpio.bind server, "/api/gpios"
   routes.section.bind server, "/api/sections"
   routes.program.bind server, "/api/programs"
