@@ -1,23 +1,11 @@
 Promise = require "bluebird"
 models = require "./models"
 sequelize = models.sequelize
-
-seq = (ps) ->
-  new Promise (res, rej) ->
-    r = []
-    t = ->
-      return res r if r.length is ps.length
-      ps[r.length]()
-      .then (a) ->
-        r.push a
-        t()
-      , (e) ->
-        rej e
-    t()
+sequential = require("./util").sequential;
 
 module.exports = ->
   log = models.log
-  seq [
+  sequential [
     -> models.Section.findOrCreate
         where:
           name: "Front 1"
@@ -46,7 +34,7 @@ module.exports = ->
     .then -> sec1.init()
     .then -> sec2.init()
     .then ->
-      prog.run()
+#      prog.run()
 #      .props (promise, cancel) ->
 #        Promise.delay 2500
 #          .then -> cancel()

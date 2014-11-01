@@ -1,80 +1,77 @@
-restify = require "restify"
+express = require "express"
+Promise = require "bluebird"
 GPIO = require "../gpio"
-RestError = require("../errors").RestError
+sequential = require("../util").sequential
 
 log = require("../log").child
   subsystem: "api"
   api: "gpio"
 , true
 
-module.exports = _GPIO =
-  bind: (server, base) ->
-    server.get "#{base}", @list
-    server.get "#{base}/open", @listOpen
-    server.post "#{base}/:gpio", @open
-    server.del "#{base}/:gpio", @close
-    server.get "#{base}/:gpio/direction", @getDirection
-    server.put "#{base}/:gpio/direction", @setDirection
-    server.get "#{base}/:gpio/value", @getValue
-    server.put "#{base}/:gpio/value", @setValue
+getInfo = (gpio) ->
+  Promise.props
+    status: "success"
+    gpio: gpio
+    open: GPIO.isOpen gpio
+  .then (info) ->
+    if info.open
+      Promise.all [
+        GPIO.getDirection gpio
+        GPIO.getValue gpio
+      ]
+      .spread (direction, value) ->
+        info.direction = direction
+        info.value = value
+        info
+    else info
 
-  list: (req, res, next) ->
-    res.send GPIO.gpios
-    next()
+module.exports = _GPIO =
+  create: ->
+    router = express.Router()
+    .get "/", @list
+    .get "/open", @listOpen
+    router.route "/:gpio"
+    .post @open
+    .delete @close
+    .get @read
+    .put @write
+    router
+
+  list: (req, res) ->
+    res.send
+      status: "success"
+      gpios: GPIO.gpios
 
   listOpen: (req, res, next) ->
     GPIO.getOpenGPIOs()
     .then (openGPIOs) ->
-      res.send openGPIOs
-    , (err) ->
-      res.send new RestError err
-    .finally -> next();
+      res.send
+        status: "success"
+        open: openGPIOs
+    .catch next
 
   open: (req, res, next) ->
     GPIO.open req.params.gpio
-    .then ->
-      res.send()
-    , (err) ->
-      res.send new RestError err
-    .finally -> next();
+    .then getInfo
+    .then (info) -> res.send info
+    .catch next
 
   close: (req, res, next) ->
     GPIO.close req.params.gpio
-    .then ->
-      res.send()
-    , (err) ->
-      res.send new RestError err
-    .finally -> next();
+    .then getInfo
+    .then (info) -> res.send info
+    .catch next
 
-  getDirection: (req, res, next) ->
-    GPIO.getDirection req.params.gpio
-    .then (direction) ->
-      res.send direction
-    , (err) ->
-      res.send new RestError err
-    .finally -> next();
+  read: (req, res, next) ->
+    getInfo req.params.gpio
+    .then (info) -> res.send info
+    .catch next
 
-  setDirection: (req, res, next) ->
-    GPIO.setDirection req.params.gpio, req.params.direction
-    .then ->
-      res.send req.params.direction
-    , (err) ->
-      res.send new RestError err
-    .finally -> next();
-
-  getValue: (req, res, next) ->
-    GPIO.getValue req.params.gpio
-    .then (value) ->
-      res.send value
-    , (err) ->
-      res.send new RestError err
-    .finally -> next();
-
-  setValue: (req, res, next) ->
-    GPIO.setValue req.params.gpio, req.params.value
-    .then ->
-      res.send req.params.value
-    , (err) ->
-      res.send new RestError err
-    .finally -> next();
+  write: (req, res, next) ->
+    Promise.resolve()
+    .then -> GPIO.setDirection req.params.gpio, req.query.direction if req.query.direction
+    .then -> GPIO.setValue req.params.gpio, req.query.value if req.query.value
+    .then -> getInfo req.params.gpio
+    .then (info) -> res.send info
+    .catch next
 

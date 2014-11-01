@@ -54,7 +54,7 @@ module.exports = (sequelize, DataTypes) ->
           GPIO.setValue @gpio, false
           .bind this
           .then -> GPIO.close @gpio
-          .tap -> _.remove initialized, @gpio
+          .tap -> initialized = _.remove initialized, @gpio
       setGPIO: (gpio) ->
         log.trace
           action: "setGPIO"

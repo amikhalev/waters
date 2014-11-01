@@ -8,8 +8,8 @@ log = require("./log").child subsystem: "gpio", true
 SYSFS = "/sys/class/gpio"
 
 sanitizeGPIO = (gpio) ->
-  _gpio = if typeof gpio is "string" then parseInt gpio, 10 else gpio
-  if _gpio in GPIO.gpios
+  if typeof gpio is "string" then gpio = parseInt gpio, 10
+  if gpio in GPIO.gpios
     Promise.resolve "#{gpio}"
   else
     Promise.reject new GPIO.GPIOError "InvalidGPIOError", "Invalid GPIO #{gpio}"
@@ -50,57 +50,112 @@ GPIO =
 
   stub: ->
     log.warn "Stubbing gpio methods"
-    @open = (gpio) ->
-      log.trace "[STUB] open #{gpio}"
-      Promise.resolve()
-    @close = (gpio) ->
-      log.trace "[STUB] close #{gpio}"
-      Promise.resolve()
-    @isOpen = (gpio) ->
-      log.trace "[STUB] isOpen #{gpio}"
-      Promise.resolve true
-    @setDirection = (gpio, direction) ->
-      log.trace "[STUB] setDirection #{gpio}, #{direction}"
-      Promise.resolve()
-    @getDirection = (gpio) ->
-      log.trace "[STUB] getDirection #{gpio}"
-      Promise.resolve GPIO.OUT
-    @setValue = (gpio, value) ->
-      log.trace "[STUB] setValue #{gpio}, #{value}"
-      Promise.resolve()
-    @getValue = (gpio) ->
-      log.trace "[STUB] getValue #{gpio}"
-      Promise.resolve true
+    _gpios = @gpios.reduce (_gpios, gpio) ->
+      _gpios["#{gpio}"] =
+        open: false
+        direction: "in"
+        value: false
+      _gpios
+    , {}
 
-  open: (gpio) ->
-    sanitizeGPIO gpio
-    .then (gpio) ->
+    @open = (gpio) ->
+      log.error gpio
       log.trace
         action: "open"
         gpio: gpio
-      , "open #{gpio}"
-      fs.writeFileAsync "#{SYSFS}/export", gpio
-    .catch sysfsErrors gpio
+      , "[STUB] open #{gpio}"
+      sanitizeGPIO gpio
+      .then (gpio) -> _gpios[gpio].open = true
 
-  close: (gpio) ->
-    sanitizeGPIO gpio
-    .then (gpio) ->
+    @close = (gpio) ->
       log.trace
         action: "close"
         gpio: gpio
-      , "close #{gpio}"
-      fs.writeFileAsync "#{SYSFS}/unexport", gpio
-    .catch sysfsErrors gpio
+      , "[STUB] close #{gpio}"
+      sanitizeGPIO gpio
+      .then (gpio) -> _gpios[gpio].open = false
 
-  isOpen: (gpio) ->
-    sanitizeGPIO gpio
-    .then (gpio) ->
+    @isOpen = (gpio) ->
       log.trace
         action: "isOpen"
         gpio: gpio
-      , "isOpen #{gpio}"
-      filename = "#{SYSFS}/gpio#{gpio}"
-      fs.existsAsync filename
+      , "[STUB] isOpen #{gpio}"
+      sanitizeGPIO gpio
+      .then (gpio) -> _gpios[gpio].open
+
+    @getOpenGPIOs = ->
+      log.trace
+        action: "getOpenGPIOs"
+      , "[STUB] getOpenGPIOs"
+      Promise.resolve
+      Object.keys _gpios
+      .filter (gpio) -> not _gpios[gpio].open
+
+    @setDirection = (gpio, direction) ->
+      log.trace
+        action: "setDirection"
+        gpio: gpio
+        direction: direction
+      , "[STUB] setDirection #{gpio}, #{direction}"
+      Promise.all [
+        sanitizeGPIO gpio
+        sanitizeDirection direction
+      ]
+      .spread (gpio, direction) -> _gpios[gpio].direction = direction
+
+    @getDirection = (gpio) ->
+      log.trace
+        action: "getDirection"
+        gpio: gpio
+      , "[STUB] getDirection #{gpio}"
+      sanitizeGPIO gpio
+      .then (gpio) -> _gpios[gpio].direction
+
+    @setValue = (gpio, value) ->
+      log.trace
+        action: "setValue"
+        gpio: gpio
+        value: value
+      , "[STUB] setValue #{gpio}, #{value}"
+      Promise.all [
+        sanitizeGPIO gpio
+        sanitizeValue value
+      ]
+      .spread (gpio, value) -> _gpios[gpio].value = value
+
+    @getValue = (gpio) ->
+      log.trace
+        action: "getValue"
+        gpio: gpio
+      , "[STUB] getValue #{gpio}"
+      sanitizeGPIO gpio
+      .then (gpio) -> _gpios[gpio].value
+
+  open: (gpio) ->
+    log.trace
+      action: "open"
+      gpio: gpio
+    , "open #{gpio}"
+    sanitizeGPIO gpio
+    .then (gpio) -> fs.writeFileAsync "#{SYSFS}/export", gpio
+    .catch sysfsErrors gpio
+
+  close: (gpio) ->
+    log.trace
+      action: "close"
+      gpio: gpio
+    , "close #{gpio}"
+    sanitizeGPIO gpio
+    .then (gpio) -> fs.writeFileAsync "#{SYSFS}/unexport", gpio
+    .catch sysfsErrors gpio
+
+  isOpen: (gpio) ->
+    log.trace
+      action: "isOpen"
+      gpio: gpio
+    , "isOpen #{gpio}"
+    sanitizeGPIO gpio
+    .then (gpio) -> fs.existsAsync "#{SYSFS}/gpio#{gpio}"
     .catch sysfsErrors gpio
 
   getOpenGPIOs: ->
@@ -108,63 +163,54 @@ GPIO =
       action: "getOpenGPIOs"
     , "getOpenGPIOs"
     fs.readdirAsync(SYSFS)
-    .filter (file) ->
-      not /export|gpiochip/.test file
-    .map (file) ->
-      parseInt file.substr(4), 10 # in the format gpioNN
+    .filter (file) -> not /export|gpiochip/.test file
+    .map (file) -> parseInt file.substr(4), 10 # in the format gpioNN
     .catch sysfsErrors()
 
   setDirection: (gpio, direction) ->
+    log.trace
+      action: "setDirection"
+      gpio: gpio
+      direction: direction
+    , "setDirection #{gpio}, #{direction}"
     Promise.all [
       sanitizeGPIO gpio
       sanitizeDirection direction
     ]
-    .spread (gpio, direction) ->
-      log.trace
-        action: "setDirection"
-        gpio: gpio
-        direction: direction
-      , "setDirection #{gpio}, #{direction}"
-      fs.writeFileAsync "#{SYSFS}/gpio#{gpio}/direction", direction
+    .spread (gpio, direction) -> fs.writeFileAsync "#{SYSFS}/gpio#{gpio}/direction", direction
     .catch sysfsErrors gpio
 
   getDirection: (gpio) ->
+    log.trace
+      action: "getDirection"
+      gpio: gpio
+    , "getDirection #{gpio}"
     sanitizeGPIO gpio
-    .then (gpio) ->
-      log.trace
-        action: "getDirection"
-        gpio: gpio
-      , "getDirection #{gpio}"
-      fs.readFileAsync("#{SYSFS}/gpio#{gpio}/direction")
-    .then (data) ->
-      data.toString().split("\n")[0]
+    .then (gpio) -> fs.readFileAsync("#{SYSFS}/gpio#{gpio}/direction")
+    .then (data) -> data.toString().split("\n")[0]
     .catch sysfsErrors gpio
 
   setValue: (gpio, value) ->
+    log.trace
+      action: "setValue"
+      gpio: gpio
+      value: value
+    , "setValue #{gpio}, #{value}"
     Promise.all [
       sanitizeGPIO gpio
       sanitizeValue value
     ]
-    .spread (gpio, value) ->
-      log.trace
-        action: "setValue"
-        gpio: gpio
-        value: value
-      , "setValue #{gpio}, #{value}"
-      fs.writeFileAsync "#{SYSFS}/gpio#{gpio}/value", value
+    .spread (gpio, value) -> fs.writeFileAsync "#{SYSFS}/gpio#{gpio}/value", value
     .catch sysfsErrors gpio
 
-  getValue: (gpio, value) ->
+  getValue: (gpio) ->
+    log.trace
+      action: "getValue"
+      gpio: gpio
+    , "getValue #{gpio}"
     sanitizeGPIO gpio
-    .then (gpio) ->
-      log.trace
-        action: "getValue"
-        gpio: gpio
-      , "getValue #{gpio}"
-      fs.readFileAsync "#{SYSFS}/gpio#{gpio}/value"
+    .then (gpio) -> fs.readFileAsync "#{SYSFS}/gpio#{gpio}/value"
     .catch sysfsErrors gpio
-    .then (data) ->
-      val = /1/.test data.toString()
-      if val then "1" else "0"
+    .then (data) -> /1/.test data.toString() ? "1" : "0"
 
 module.exports = GPIO
